@@ -49,7 +49,7 @@ export interface ProviderConfig {
 export const PRESETS: Record<string, Omit<ProviderConfig, "model"> & { model: string }> = {
   "ollama": {
     provider: "ollama",
-    model: "qwen2.5-coder:32b-16k",
+    model: "qwen2.5-coder:32b-8k",
     baseUrl: "http://localhost:11434/v1",
   },
   "ollama-small": {
@@ -64,7 +64,7 @@ export const PRESETS: Record<string, Omit<ProviderConfig, "model"> & { model: st
   },
   "ollama-32b": {
     provider: "ollama",
-    model: "qwen2.5-coder:32b-16k",
+    model: "qwen2.5-coder:32b-8k",
     baseUrl: "http://localhost:11434/v1",
   },
   "openai": {
