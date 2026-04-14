@@ -84,16 +84,7 @@ export async function runAgent(
 
     let response;
     try {
-      const debugStart = Date.now();
       response = await chatCompletion(config.provider, messages, tools);
-      const debugMs = Date.now() - debugStart;
-      // Debug: log what the model returned
-      const hasTools = response.message.tool_calls?.length ?? 0;
-      const contentLen = response.message.content?.length ?? 0;
-      console.error(`[debug] iter=${iterations} time=${debugMs}ms finish=${response.finish_reason} tools=${hasTools} content=${contentLen}chars tokens=${response.usage.prompt_tokens}+${response.usage.completion_tokens}`);
-      if (contentLen > 0 && contentLen < 500) {
-        console.error(`[debug] content: ${response.message.content}`);
-      }
     } catch (err: any) {
       return {
         report: null,
