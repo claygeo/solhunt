@@ -193,7 +193,7 @@ program
           provider: providerConfig,
           maxIterations: parseInt(options.maxIterations),
           toolTimeout: parseInt(process.env.SOLHUNT_TOOL_TIMEOUT ?? "60000"),
-          scanTimeout: parseInt(process.env.SOLHUNT_SCAN_TIMEOUT ?? "1800000"),
+          scanTimeout: parseInt(process.env.SOLHUNT_SCAN_TIMEOUT ?? "3600000"),
         },
         (iter, tool) => {
           spinner.text = `Agent iteration ${iter}: ${tool}`;

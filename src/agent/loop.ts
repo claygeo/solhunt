@@ -180,6 +180,21 @@ export async function runAgent(
       break;
     }
 
+    // Detect repeated tool calls (model stuck in a loop)
+    const lastToolCalls = messages
+      .filter(m => m.role === "assistant" && m.tool_calls?.length)
+      .slice(-3)
+      .map(m => m.tool_calls![0].function.name);
+    if (lastToolCalls.length >= 3 && lastToolCalls.every(n => n === "forge_test")) {
+      // Force the model to fix the code instead of re-running tests
+      messages.push(assistantMessage);
+      messages.push({
+        role: "user",
+        content: "STOP re-running the same test. The test keeps failing. Use str_replace_editor with command='create' to rewrite test/Exploit.t.sol with a DIFFERENT approach. Fix the compilation or logic errors. You MUST use the str_replace_editor tool, not explain.",
+      });
+      continue;
+    }
+
     // Add assistant message to history
     messages.push(assistantMessage);
 
