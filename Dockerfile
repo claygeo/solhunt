@@ -1,7 +1,9 @@
 FROM ghcr.io/foundry-rs/foundry:latest
 
+USER root
+
 # Create workspace directory
-RUN mkdir -p /workspace
+RUN mkdir -p /workspace && chmod 777 /workspace
 WORKDIR /workspace
 
 # Pre-initialize a forge project so dependencies are cached
