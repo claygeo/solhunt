@@ -114,16 +114,22 @@ export async function runAgent(
       lastTextOutput = assistantMessage.content;
     }
 
-    // If no tool calls: for early iterations, nudge the model to use tools.
-    // Local models often explain instead of acting on the first try.
+    // If no tool calls: nudge the model to use tools instead of explaining.
+    // Local models often explain instead of acting.
     if (response.finish_reason !== "tool_calls" || !assistantMessage.tool_calls?.length) {
-      if (iterations <= 3) {
-        // Add assistant response then nudge
+      if (iterations <= 8) {
         messages.push({ role: "assistant", content: assistantMessage.content ?? "" });
-        messages.push({
-          role: "user",
-          content: "You have tools available. Please use the bash or str_replace_editor tool to read the contract source files and begin your analysis. Start by running: bash with command 'cat /workspace/scan/src/*.sol'",
-        });
+
+        // Context-aware nudge: if the model already analyzed the code, tell it to write the exploit
+        const hasReadCode = messages.some(m =>
+          m.role === "tool" && m.content?.includes("pragma solidity")
+        );
+
+        const nudge = hasReadCode
+          ? `Good analysis. Now take action: use the str_replace_editor tool to create the exploit test file at test/Exploit.t.sol. Write the Solidity exploit code that demonstrates this vulnerability. Do NOT explain — use the tool to create the file.`
+          : `You have tools available. Use the bash tool to read the contract: bash with command 'cat /workspace/scan/src/*.sol'`;
+
+        messages.push({ role: "user", content: nudge });
         continue;
       }
       break;
