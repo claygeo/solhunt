@@ -141,11 +141,54 @@ export async function chatCompletion(
     throw new Error("No response from model");
   }
 
+  const message = choice.message;
+
+  // Some models (especially local ones via Ollama) return tool calls as JSON text
+  // in the content field instead of using the structured tool_calls field.
+  // Detect and convert these to proper tool_calls format.
+  if (!message.tool_calls && message.content && tools?.length) {
+    const parsed = tryParseToolCallFromContent(message.content);
+    if (parsed) {
+      message.tool_calls = [parsed];
+      message.content = undefined;
+    }
+  }
+
+  const hasToolCalls = message.tool_calls && message.tool_calls.length > 0;
+
   return {
-    message: choice.message,
-    finish_reason: choice.finish_reason === "tool_calls" ? "tool_calls" : "stop",
+    message,
+    finish_reason: (choice.finish_reason === "tool_calls" || hasToolCalls) ? "tool_calls" : "stop",
     usage: data.usage ?? { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
   };
+}
+
+// Attempt to parse a tool call from model text output.
+// Handles: {"name": "bash", "arguments": {"command": "ls"}}
+// and: {"name": "bash", "parameters": {"command": "ls"}}
+function tryParseToolCallFromContent(content: string): ToolCall | null {
+  try {
+    // Try to find JSON in the content (may be wrapped in markdown code blocks)
+    const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, content];
+    const text = jsonMatch[1]?.trim() ?? content.trim();
+
+    const parsed = JSON.parse(text);
+
+    if (parsed.name && (parsed.arguments || parsed.parameters)) {
+      const args = parsed.arguments ?? parsed.parameters;
+      return {
+        id: `call_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        type: "function",
+        function: {
+          name: parsed.name,
+          arguments: typeof args === "string" ? args : JSON.stringify(args),
+        },
+      };
+    }
+  } catch {
+    // Not parseable as a tool call, that's fine
+  }
+  return null;
 }
 
 function formatMessage(msg: Message): any {
