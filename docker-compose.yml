@@ -1,0 +1,22 @@
+services:
+  solhunt-sandbox:
+    build: .
+    command: "sleep infinity"
+    environment:
+      - ETH_RPC_URL=${ETH_RPC_URL}
+    # No host network access except for RPC forking
+    networks:
+      - sandbox
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 4G
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=512M
+
+networks:
+  sandbox:
+    driver: bridge

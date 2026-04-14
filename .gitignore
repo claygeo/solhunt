@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.env
+benchmark/results/*.json
+benchmark/results/*.md
+*.tgz

@@ -1,0 +1,256 @@
+#!/usr/bin/env node
+
+import { Command } from "commander";
+import chalk from "chalk";
+import ora from "ora";
+import dotenv from "dotenv";
+import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+
+import { SandboxManager } from "./sandbox/manager.js";
+import { ForkManager } from "./sandbox/fork.js";
+import { FoundryProject } from "./sandbox/foundry.js";
+import { fetchContractSource } from "./ingestion/etherscan.js";
+import { runAgent } from "./agent/loop.js";
+import { calculateCost } from "./reporter/format.js";
+import { renderReport, renderBenchmarkTable } from "./reporter/markdown.js";
+import type { ScanResult } from "./reporter/format.js";
+import { runBenchmark } from "./benchmark/runner.js";
+
+dotenv.config();
+
+const program = new Command();
+
+program
+  .name("solhunt")
+  .description("Autonomous AI agent for smart contract vulnerability detection")
+  .version("0.1.0");
+
+program
+  .command("scan")
+  .description("Scan a smart contract for vulnerabilities")
+  .argument("<target>", "Contract address (0x...) or path to .sol file")
+  .option("--chain <chain>", "Blockchain network", "ethereum")
+  .option("--block <number>", "Block number for fork")
+  .option("--model <model>", "Claude model to use", process.env.SOLHUNT_MODEL ?? "claude-sonnet-4-6")
+  .option("--max-iterations <n>", "Max agent iterations", "30")
+  .option("--dry-run", "Show what would happen without calling Claude", false)
+  .option("--json", "Output as JSON", false)
+  .action(async (target, options) => {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      console.error(chalk.red("ANTHROPIC_API_KEY not set. Copy .env.example to .env and fill in your key."));
+      process.exit(1);
+    }
+
+    const etherscanKey = process.env.ETHERSCAN_API_KEY;
+    if (!etherscanKey && target.startsWith("0x")) {
+      console.error(chalk.red("ETHERSCAN_API_KEY not set. Needed to fetch contract source."));
+      process.exit(1);
+    }
+
+    const rpcUrl = process.env.ETH_RPC_URL;
+    if (!rpcUrl) {
+      console.error(chalk.red("ETH_RPC_URL not set. Need an RPC endpoint for blockchain forking."));
+      process.exit(1);
+    }
+
+    const spinner = ora("Initializing...").start();
+    const sandbox = new SandboxManager();
+    const scanId = randomUUID().slice(0, 8);
+    let containerId: string | undefined;
+
+    try {
+      // Check Docker
+      spinner.text = "Checking Docker...";
+      const healthy = await sandbox.healthCheck();
+      if (!healthy) {
+        spinner.fail("Docker is not running. Start Docker and try again.");
+        process.exit(1);
+      }
+
+      // Fetch contract source
+      let sources: { filename: string; content: string }[];
+      let contractName: string;
+
+      if (target.startsWith("0x")) {
+        spinner.text = `Fetching contract source from Etherscan...`;
+        const info = await fetchContractSource(target, etherscanKey!, 1);
+        sources = info.sources;
+        contractName = info.name;
+      } else {
+        // Local file
+        spinner.text = `Reading ${target}...`;
+        const content = readFileSync(target, "utf-8");
+        const filename = target.split("/").pop() ?? "Contract.sol";
+        contractName = filename.replace(".sol", "");
+        sources = [{ filename, content }];
+      }
+
+      spinner.text = `Found ${sources.length} source file(s) for ${contractName}`;
+
+      if (options.dryRun) {
+        spinner.succeed("Dry run complete");
+        console.log(`\nWould scan: ${contractName} (${target})`);
+        console.log(`Chain: ${options.chain}`);
+        console.log(`Block: ${options.block ?? "latest"}`);
+        console.log(`Model: ${options.model}`);
+        console.log(`Source files: ${sources.map((s) => s.filename).join(", ")}`);
+        return;
+      }
+
+      // Create sandbox
+      spinner.text = "Creating Docker sandbox...";
+      containerId = await sandbox.createContainer(scanId, { rpcUrl });
+
+      // Scaffold Foundry project
+      spinner.text = "Scaffolding Foundry project...";
+      const foundry = new FoundryProject(sandbox);
+      await foundry.scaffold(containerId, rpcUrl, options.block ? parseInt(options.block) : undefined);
+
+      // Add contract sources
+      spinner.text = "Adding contract source to sandbox...";
+      await foundry.addContractSource(containerId, sources);
+
+      // Start anvil fork
+      spinner.text = "Starting blockchain fork...";
+      const fork = new ForkManager(sandbox);
+      await fork.startAnvilFork(containerId, {
+        chain: options.chain,
+        rpcUrl,
+        blockNumber: options.block ? parseInt(options.block) : undefined,
+      });
+
+      // Build to verify sources compile
+      spinner.text = "Verifying contract compiles...";
+      const buildResult = await foundry.build(containerId);
+      if (!buildResult.success) {
+        spinner.warn("Contract has compilation warnings (proceeding anyway)");
+      }
+
+      // Run agent
+      spinner.text = "Agent analyzing contract...";
+      const agentResult = await runAgent(
+        {
+          address: target,
+          name: contractName,
+          chain: options.chain,
+          blockNumber: options.block ? parseInt(options.block) : undefined,
+          sources,
+        },
+        containerId,
+        sandbox,
+        {
+          model: options.model,
+          maxIterations: parseInt(options.maxIterations),
+          toolTimeout: parseInt(process.env.SOLHUNT_TOOL_TIMEOUT ?? "60000"),
+          scanTimeout: parseInt(process.env.SOLHUNT_SCAN_TIMEOUT ?? "1800000"),
+          apiKey,
+        },
+        (iter, tool) => {
+          spinner.text = `Agent iteration ${iter}: ${tool}`;
+        }
+      );
+
+      spinner.succeed("Scan complete");
+
+      // Format result
+      const scanResult: ScanResult = {
+        report: agentResult.report,
+        iterations: agentResult.iterations,
+        cost: {
+          inputTokens: agentResult.cost.inputTokens,
+          outputTokens: agentResult.cost.outputTokens,
+          totalUSD: calculateCost(
+            options.model,
+            agentResult.cost.inputTokens,
+            agentResult.cost.outputTokens
+          ),
+        },
+        durationMs: agentResult.durationMs,
+        error: agentResult.error,
+      };
+
+      if (options.json) {
+        console.log(JSON.stringify(scanResult, null, 2));
+      } else {
+        console.log(renderReport(scanResult));
+      }
+    } catch (err: any) {
+      spinner.fail(err.message);
+      process.exit(1);
+    } finally {
+      if (containerId) {
+        await sandbox.destroyContainer(containerId).catch(() => {});
+      }
+    }
+  });
+
+program
+  .command("benchmark")
+  .description("Run agent against a dataset of known-vulnerable contracts")
+  .option("--dataset <path>", "Path to benchmark dataset JSON", "./benchmark/dataset.json")
+  .option("--limit <n>", "Max contracts to test")
+  .option("--concurrency <n>", "Parallel scans", "3")
+  .option("--model <model>", "Claude model", process.env.SOLHUNT_MODEL ?? "claude-sonnet-4-6")
+  .option("--output <path>", "Output results JSON path")
+  .option("--json", "Output as JSON", false)
+  .action(async (options) => {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    const etherscanKey = process.env.ETHERSCAN_API_KEY;
+    const rpcUrl = process.env.ETH_RPC_URL;
+
+    if (!apiKey || !etherscanKey || !rpcUrl) {
+      console.error(chalk.red("Missing required env vars. Check .env file."));
+      process.exit(1);
+    }
+
+    try {
+      const results = await runBenchmark({
+        datasetPath: options.dataset,
+        limit: options.limit ? parseInt(options.limit) : undefined,
+        concurrency: parseInt(options.concurrency),
+        model: options.model,
+        apiKey,
+        etherscanKey,
+        rpcUrl,
+        outputPath: options.output,
+      });
+
+      if (options.json) {
+        console.log(JSON.stringify(results, null, 2));
+      } else {
+        console.log(renderBenchmarkTable(results));
+      }
+    } catch (err: any) {
+      console.error(chalk.red(err.message));
+      process.exit(1);
+    }
+  });
+
+program
+  .command("health")
+  .description("Check if Docker and dependencies are ready")
+  .action(async () => {
+    const sandbox = new SandboxManager();
+    const checks = [
+      { name: "Docker", check: () => sandbox.healthCheck() },
+      { name: "ANTHROPIC_API_KEY", check: async () => !!process.env.ANTHROPIC_API_KEY },
+      { name: "ETHERSCAN_API_KEY", check: async () => !!process.env.ETHERSCAN_API_KEY },
+      { name: "ETH_RPC_URL", check: async () => !!process.env.ETH_RPC_URL },
+    ];
+
+    console.log(chalk.bold("\nsolhunt health check\n"));
+
+    for (const { name, check } of checks) {
+      try {
+        const ok = await check();
+        console.log(ok ? chalk.green(`  [ok] ${name}`) : chalk.red(`  [!!] ${name}`));
+      } catch {
+        console.log(chalk.red(`  [!!] ${name}`));
+      }
+    }
+    console.log("");
+  });
+
+program.parse();

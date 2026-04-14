@@ -1,0 +1,57 @@
+[
+  {
+    "id": "reentrancy-001",
+    "name": "The DAO",
+    "chain": "ethereum",
+    "blockNumber": 1718497,
+    "contractAddress": "0xBB9bc244D798123fDe783fCc1C72d3Bb8C189413",
+    "vulnerabilityClass": "reentrancy",
+    "description": "Classic reentrancy via splitDAO function. The first and most famous smart contract exploit.",
+    "date": "2016-06-17",
+    "valueImpacted": "$60M"
+  },
+  {
+    "id": "reentrancy-002",
+    "name": "Rari Capital / Fuse",
+    "chain": "ethereum",
+    "blockNumber": 14684813,
+    "contractAddress": "0x419f13F5D3699C04AC55b3B2A3dCed6a4104D56A",
+    "vulnerabilityClass": "reentrancy",
+    "description": "Reentrancy via CEther market borrow function",
+    "date": "2022-04-30",
+    "valueImpacted": "$80M"
+  },
+  {
+    "id": "price-manipulation-001",
+    "name": "Euler Finance",
+    "chain": "ethereum",
+    "blockNumber": 16817996,
+    "contractAddress": "0x27182842E098f60e3D576794A5bFFb0777E025d3",
+    "vulnerabilityClass": "price-manipulation",
+    "description": "Donation attack on eToken/dToken exchange rate",
+    "date": "2023-03-13",
+    "valueImpacted": "$197M"
+  },
+  {
+    "id": "integer-001",
+    "name": "BeautyChain BEC",
+    "chain": "ethereum",
+    "blockNumber": 5571300,
+    "contractAddress": "0xC5d105E63711398aF9bbff092d4B6CdeF7C9BcB8",
+    "vulnerabilityClass": "integer-overflow",
+    "description": "Integer overflow in batchTransfer function allowed minting arbitrary tokens",
+    "date": "2018-04-22",
+    "valueImpacted": "$900M"
+  },
+  {
+    "id": "delegatecall-001",
+    "name": "Parity Multisig",
+    "chain": "ethereum",
+    "blockNumber": 4501969,
+    "contractAddress": "0x863DF6BFa4469f3ead0bE8f9F2AAE51c91A907b4",
+    "vulnerabilityClass": "delegatecall",
+    "description": "Unprotected delegatecall in library contract allowed anyone to become owner and selfdestruct",
+    "date": "2017-11-06",
+    "valueImpacted": "$150M"
+  }
+]
