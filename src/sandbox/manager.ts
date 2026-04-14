@@ -51,7 +51,8 @@ export class SandboxManager {
     const container = await this.docker.createContainer({
       Image: SANDBOX_IMAGE,
       name: containerName,
-      Cmd: ["sleep", "infinity"],
+      Entrypoint: ["/bin/sh", "-c"],
+      Cmd: ["sleep infinity"],
       Env: [`ETH_RPC_URL=${options.rpcUrl}`],
       HostConfig: {
         NanoCpus: (options.cpuLimit ?? 2) * 1e9,
