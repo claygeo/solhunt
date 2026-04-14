@@ -82,6 +82,29 @@ export async function runAgent(
 
     iterations++;
 
+    // Trim conversation to prevent context overflow.
+    // Keep: system prompt, user prompt, last 6 messages (3 assistant+tool pairs).
+    // Summarize older tool results to save tokens.
+    if (messages.length > 10) {
+      const systemAndUser = messages.slice(0, 2); // system + analysis prompt
+      const recent = messages.slice(-6); // last 3 pairs
+      const middle = messages.slice(2, -6);
+
+      // Compress middle messages: keep structure but truncate long tool outputs
+      const compressed = middle.map(m => {
+        if (m.role === "tool" && m.content && m.content.length > 200) {
+          return { ...m, content: m.content.slice(0, 200) + "\n[... output truncated ...]" };
+        }
+        if (m.role === "assistant" && m.content && m.content.length > 200) {
+          return { ...m, content: m.content.slice(0, 200) + "\n[... truncated ...]" };
+        }
+        return m;
+      });
+
+      messages.length = 0;
+      messages.push(...systemAndUser, ...compressed, ...recent);
+    }
+
     let response;
     try {
       response = await chatCompletion(config.provider, messages, tools);
