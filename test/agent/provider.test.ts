@@ -5,7 +5,7 @@ describe("resolveProvider", () => {
   it("resolves ollama preset", () => {
     const config = resolveProvider("ollama");
     expect(config.provider).toBe("ollama");
-    expect(config.model).toBe("qwen2.5-coder:32b");
+    expect(config.model).toBe("qwen2.5-coder:32b-16k");
     expect(config.baseUrl).toContain("localhost:11434");
   });
 

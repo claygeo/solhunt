@@ -49,7 +49,7 @@ export interface ProviderConfig {
 export const PRESETS: Record<string, Omit<ProviderConfig, "model"> & { model: string }> = {
   "ollama": {
     provider: "ollama",
-    model: "qwen2.5-coder:32b",
+    model: "qwen2.5-coder:32b-16k",
     baseUrl: "http://localhost:11434/v1",
   },
   "ollama-small": {
@@ -64,7 +64,7 @@ export const PRESETS: Record<string, Omit<ProviderConfig, "model"> & { model: st
   },
   "ollama-32b": {
     provider: "ollama",
-    model: "qwen2.5-coder:32b",
+    model: "qwen2.5-coder:32b-16k",
     baseUrl: "http://localhost:11434/v1",
   },
   "openai": {
@@ -127,11 +127,6 @@ export async function chatCompletion(
     max_tokens: config.maxTokens ?? 16384,
     temperature: 0,
   };
-
-  // Ollama: request larger context window (default 4096 is too small for our prompts)
-  if (config.provider === "ollama") {
-    body.options = { num_ctx: 16384 };
-  }
 
   if (tools && tools.length > 0) {
     body.tools = tools;
