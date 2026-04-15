@@ -75,11 +75,12 @@ runs = 256
     // Contracts use two import styles for vendored libs:
     //   "./lib/X" (resolves to src/lib/X) ← already works
     //   "../lib/X" (resolves to /workspace/scan/lib/X) ← needs this copy
-    // Copy vendored lib files into the project-level lib/ so both work.
-    // Use -n to avoid overwriting pre-installed deps (forge-std, etc.)
+    // Force-copy vendored lib files to project-level lib/.
+    // Must overwrite pre-installed deps because the contract may pin
+    // a specific version (e.g., OZ v4 vs our pre-installed v5).
     await this.sandbox.exec(
       containerId,
-      "cp -rn /workspace/scan/src/lib/* /workspace/scan/lib/ 2>/dev/null; true"
+      "test -d /workspace/scan/src/lib && cp -rf /workspace/scan/src/lib/* /workspace/scan/lib/ 2>/dev/null; true"
     );
   }
 
