@@ -20,10 +20,28 @@ export function buildAnalysisPrompt(params: {
     .map((f) => `- src/${f.filename}`)
     .join("\n");
 
-  // Include source code directly in the prompt to reduce tool-use iterations
-  const sourceContents = params.sourceFiles
-    .map((f) => `### ${f.filename}\n\`\`\`solidity\n${f.content}\n\`\`\``)
-    .join("\n\n");
+  // Include source code directly in the prompt to reduce tool-use iterations.
+  // Truncate if total source is too large (prevents prompt overflow on local models).
+  const MAX_SOURCE_CHARS = 30_000;
+  let totalChars = params.sourceFiles.reduce((sum, f) => sum + f.content.length, 0);
+
+  let sourceContents: string;
+  if (totalChars <= MAX_SOURCE_CHARS) {
+    sourceContents = params.sourceFiles
+      .map((f) => `### ${f.filename}\n\`\`\`solidity\n${f.content}\n\`\`\``)
+      .join("\n\n");
+  } else {
+    // For large contracts: include first file in full, summarize the rest
+    const primary = params.sourceFiles[0];
+    const primaryContent = primary.content.length > MAX_SOURCE_CHARS
+      ? primary.content.slice(0, MAX_SOURCE_CHARS) + "\n// ... [truncated, use read_file to see full source]"
+      : primary.content;
+    const otherFiles = params.sourceFiles.slice(1).map(f =>
+      `- \`src/${f.filename}\` (${f.content.length} chars)`
+    ).join("\n");
+    sourceContents = `### ${primary.filename}\n\`\`\`solidity\n${primaryContent}\n\`\`\`\n\n` +
+      (otherFiles ? `### Other source files (use read_file or bash to inspect):\n${otherFiles}` : "");
+  }
 
   return `## Target Contract
 
