@@ -59,27 +59,28 @@ runs = 256
     containerId: string,
     sources: ContractSource[]
   ): Promise<void> {
-    // Filter out sources that ship with forge-std (always pre-installed).
-    // Keep everything else, including vendored OpenZeppelin, since the
-    // contract may pin a specific version.
+    // Skip forge-std sources (always pre-installed in template)
     const skipPrefixes = ["forge-std/"];
 
     for (const source of sources) {
       if (skipPrefixes.some(p => source.filename.startsWith(p))) continue;
 
-      // Files with "lib/" prefix go to /workspace/scan/lib/ (not src/)
-      // because contracts import them via "../lib/..." relative paths.
-      // Everything else goes to /workspace/scan/src/.
-      const isLib = source.filename.startsWith("lib/");
-      const basePath = isLib ? "/workspace/scan" : "/workspace/scan/src";
-      const path = `${basePath}/${source.filename}`;
-
-      // Create parent directories for nested source files
+      // All source files go into src/ at their given paths
+      const path = `/workspace/scan/src/${source.filename}`;
       const dir = path.substring(0, path.lastIndexOf("/"));
       await this.sandbox.exec(containerId, `mkdir -p "${dir}"`);
-
       await this.sandbox.writeFile(containerId, path, source.content);
     }
+
+    // Contracts use two import styles for vendored libs:
+    //   "./lib/X" (resolves to src/lib/X) ← already works
+    //   "../lib/X" (resolves to /workspace/scan/lib/X) ← needs this copy
+    // Copy vendored lib files into the project-level lib/ so both work.
+    // Use -n to avoid overwriting pre-installed deps (forge-std, etc.)
+    await this.sandbox.exec(
+      containerId,
+      "cp -rn /workspace/scan/src/lib/* /workspace/scan/lib/ 2>/dev/null; true"
+    );
   }
 
   async build(containerId: string): Promise<{ success: boolean; output: string }> {
