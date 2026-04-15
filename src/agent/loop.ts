@@ -184,6 +184,43 @@ export async function runAgent(
       break;
     }
 
+    // Force report when approaching max iterations.
+    // This fixes models like Claude that ONLY return tool_calls and never text,
+    // so the nudge system (which requires finish_reason !== "tool_calls") never fires.
+    const iterationsLeft = config.maxIterations - iterations;
+    if (iterationsLeft <= 3) {
+      messages.push(assistantMessage);
+
+      // Execute tool calls first so the model sees results
+      for (const toolCall of assistantMessage.tool_calls) {
+        const toolName = toolCall.function.name;
+        let toolInput: any;
+        try {
+          toolInput = JSON.parse(toolCall.function.arguments);
+        } catch {
+          toolInput = { command: toolCall.function.arguments };
+        }
+        onIteration?.(iterations, toolName);
+        const result = await executor.execute(toolName, toolInput);
+        let output = result.output;
+        if (output.length > 50_000) {
+          output = output.slice(0, 25_000) + "\n\n... [truncated] ...\n\n" + output.slice(-25_000);
+        }
+        messages.push({ role: "tool", tool_call_id: toolCall.id, name: toolName, content: output });
+      }
+
+      // Now force the report
+      const hasForgePass = messages.some(m =>
+        m.role === "tool" && m.name === "forge_test" && m.content?.includes("PASS")
+      );
+      const reportNudge = hasForgePass
+        ? `FINAL ITERATION. Your exploit test PASSED. You MUST now output your structured report. Do NOT call any more tools. Output ONLY this format:\n\n===SOLHUNT_REPORT_START===\n{ "found": true, "vulnerability": { "class": "...", "severity": "...", "functions": [...], "description": "..." }, "exploit": { "testFile": "test/Exploit.t.sol", "testPassed": true, "valueAtRisk": "..." } }\n===SOLHUNT_REPORT_END===`
+        : `FINAL ITERATION. You have exhausted your iteration budget. You MUST now output your findings report. Do NOT call any more tools. Output ONLY this format:\n\n===SOLHUNT_REPORT_START===\n{ "found": false, "vulnerability": { "class": "...", "severity": "...", "functions": [...], "description": "Describe what you analyzed and why exploitation was not possible" }, "exploit": { "testFile": "", "testPassed": false, "valueAtRisk": "unknown" } }\n===SOLHUNT_REPORT_END===`;
+
+      messages.push({ role: "user", content: reportNudge });
+      continue;
+    }
+
     // Detect repeated tool calls (model stuck in a loop)
     const lastToolCalls = messages
       .filter(m => m.role === "assistant" && m.tool_calls?.length)

@@ -28,6 +28,15 @@ out = "out"
 libs = ["lib"]
 solc_version = "0.8.20"
 evm_version = "shanghai"
+auto_detect_solc = true
+
+remappings = [
+  "@openzeppelin/=lib/openzeppelin-contracts/",
+  "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+  "@uniswap/v2-core/=lib/v2-core/",
+  "@uniswap/v3-core/=lib/v3-core/",
+  "@chainlink/=lib/chainlink/",
+]
 
 [rpc_endpoints]
 local = "${forkUrl}"

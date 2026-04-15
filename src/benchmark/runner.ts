@@ -60,6 +60,25 @@ export async function runBenchmark(
       }
     }
 
+    // Circuit breaker: stop if last 3 results all failed the same way
+    if (results.length >= 3) {
+      const last3 = results.slice(-3);
+      const allNoReport = last3.every(r => !r.report && !r.error);
+      const allSameError = last3.every(r => r.error) &&
+        new Set(last3.map(r => r.error?.slice(0, 50))).size === 1;
+
+      if (allNoReport) {
+        console.log(chalk.red("\n[CIRCUIT BREAKER] Last 3 contracts produced no report. Stopping to avoid wasting budget."));
+        console.log(chalk.red("Fix the agent loop before re-running.\n"));
+        break;
+      }
+      if (allSameError) {
+        console.log(chalk.red(`\n[CIRCUIT BREAKER] Last 3 contracts hit the same error: ${last3[0].error?.slice(0, 80)}`));
+        console.log(chalk.red("Stopping to avoid wasting budget.\n"));
+        break;
+      }
+    }
+
     // Save intermediate results
     if (config.outputPath) {
       writeFileSync(config.outputPath, JSON.stringify(results, null, 2));
