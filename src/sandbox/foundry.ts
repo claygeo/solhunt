@@ -59,8 +59,29 @@ runs = 256
     containerId: string,
     sources: ContractSource[]
   ): Promise<void> {
+    // Filter out library sources that are already installed via forge
+    const libraryPrefixes = [
+      "@openzeppelin/",
+      "@uniswap/",
+      "@chainlink/",
+      "forge-std/",
+      "openzeppelin-contracts/",
+    ];
+
     for (const source of sources) {
+      const isLibrary = libraryPrefixes.some(prefix =>
+        source.filename.startsWith(prefix)
+      );
+      if (isLibrary) continue;
+
       const path = `/workspace/scan/src/${source.filename}`;
+
+      // Create parent directories for nested source files
+      const dir = path.substring(0, path.lastIndexOf("/"));
+      if (dir !== "/workspace/scan/src") {
+        await this.sandbox.exec(containerId, `mkdir -p "${dir}"`);
+      }
+
       await this.sandbox.writeFile(containerId, path, source.content);
     }
   }

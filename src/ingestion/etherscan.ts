@@ -78,6 +78,17 @@ export async function fetchContractSource(
   };
 }
 
+// Strip common path prefixes from Etherscan source filenames
+// e.g., "contracts/src/Curve.sol" → "Curve.sol"
+//        "src/interfaces/IFoo.sol" → "interfaces/IFoo.sol"
+function normalizeSourcePath(filename: string): string {
+  // Strip common prefixes that would cause double-nesting in our src/ directory
+  return filename
+    .replace(/^contracts\//, "")
+    .replace(/^src\//, "")
+    .replace(/^lib\//, "");
+}
+
 function parseSourceCode(
   sourceCode: string,
   contractName: string
@@ -94,7 +105,7 @@ function parseSourceCode(
       if (parsed.sources) {
         return Object.entries(parsed.sources).map(
           ([filename, data]: [string, any]) => ({
-            filename: filename.replace(/^contracts\//, ""),
+            filename: normalizeSourcePath(filename),
             content: data.content,
           })
         );
@@ -111,7 +122,7 @@ function parseSourceCode(
       if (parsed.sources) {
         return Object.entries(parsed.sources).map(
           ([filename, data]: [string, any]) => ({
-            filename: filename.replace(/^contracts\//, ""),
+            filename: normalizeSourcePath(filename),
             content: data.content,
           })
         );
