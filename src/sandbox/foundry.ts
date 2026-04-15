@@ -59,28 +59,24 @@ runs = 256
     containerId: string,
     sources: ContractSource[]
   ): Promise<void> {
-    // Filter out library sources that are already installed via forge
-    const libraryPrefixes = [
-      "@openzeppelin/",
-      "@uniswap/",
-      "@chainlink/",
-      "forge-std/",
-      "openzeppelin-contracts/",
-    ];
+    // Filter out sources that ship with forge-std (always pre-installed).
+    // Keep everything else, including vendored OpenZeppelin, since the
+    // contract may pin a specific version.
+    const skipPrefixes = ["forge-std/"];
 
     for (const source of sources) {
-      const isLibrary = libraryPrefixes.some(prefix =>
-        source.filename.startsWith(prefix)
-      );
-      if (isLibrary) continue;
+      if (skipPrefixes.some(p => source.filename.startsWith(p))) continue;
 
-      const path = `/workspace/scan/src/${source.filename}`;
+      // Files with "lib/" prefix go to /workspace/scan/lib/ (not src/)
+      // because contracts import them via "../lib/..." relative paths.
+      // Everything else goes to /workspace/scan/src/.
+      const isLib = source.filename.startsWith("lib/");
+      const basePath = isLib ? "/workspace/scan" : "/workspace/scan/src";
+      const path = `${basePath}/${source.filename}`;
 
       // Create parent directories for nested source files
       const dir = path.substring(0, path.lastIndexOf("/"));
-      if (dir !== "/workspace/scan/src") {
-        await this.sandbox.exec(containerId, `mkdir -p "${dir}"`);
-      }
+      await this.sandbox.exec(containerId, `mkdir -p "${dir}"`);
 
       await this.sandbox.writeFile(containerId, path, source.content);
     }
