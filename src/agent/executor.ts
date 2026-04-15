@@ -1,5 +1,7 @@
 import { SandboxManager } from "../sandbox/manager.js";
 
+const WORKDIR = "/workspace/scan";
+
 export interface ToolResult {
   output: string;
   isError: boolean;
@@ -11,6 +13,12 @@ export class ToolExecutor {
     private containerId: string,
     private toolTimeout: number = 60_000
   ) {}
+
+  // Resolve relative paths to the workspace directory
+  private resolvePath(path: string): string {
+    if (path.startsWith("/")) return path;
+    return `${WORKDIR}/${path}`;
+  }
 
   async execute(toolName: string, input: any): Promise<ToolResult> {
     switch (toolName) {
@@ -32,9 +40,11 @@ export class ToolExecutor {
     restart?: boolean;
   }): Promise<ToolResult> {
     try {
+      // Always run from the workspace directory
+      const cmd = `cd ${WORKDIR} && ${input.command}`;
       const result = await this.sandbox.exec(
         this.containerId,
-        input.command,
+        cmd,
         this.toolTimeout
       );
 
@@ -61,62 +71,69 @@ export class ToolExecutor {
     insert_line?: number;
     view_range?: [number, number];
   }): Promise<ToolResult> {
+    // Resolve relative paths to workspace
+    const resolvedPath = this.resolvePath(input.path);
+    const resolvedInput = { ...input, path: resolvedPath };
+
     try {
-      switch (input.command) {
+      switch (resolvedInput.command) {
         case "view": {
           const result = await this.sandbox.exec(
             this.containerId,
-            input.view_range
-              ? `sed -n '${input.view_range[0]},${input.view_range[1]}p' '${input.path}'`
-              : `cat -n '${input.path}'`,
+            resolvedInput.view_range
+              ? `sed -n '${resolvedInput.view_range[0]},${resolvedInput.view_range[1]}p' '${resolvedInput.path}'`
+              : `cat -n '${resolvedInput.path}'`,
             this.toolTimeout
           );
           return { output: result.stdout || result.stderr, isError: result.exitCode !== 0 };
         }
 
         case "create": {
-          if (!input.file_text) {
+          if (!resolvedInput.file_text) {
             return { output: "file_text required for create", isError: true };
           }
-          await this.sandbox.writeFile(this.containerId, input.path, input.file_text);
-          return { output: `File created: ${input.path}`, isError: false };
+          // Create parent directories if needed
+          const dir = resolvedInput.path.substring(0, resolvedInput.path.lastIndexOf("/"));
+          await this.sandbox.exec(this.containerId, `mkdir -p "${dir}"`);
+          await this.sandbox.writeFile(this.containerId, resolvedInput.path, resolvedInput.file_text);
+          return { output: `File created: ${resolvedInput.path}`, isError: false };
         }
 
         case "str_replace": {
-          if (input.old_str === undefined || input.new_str === undefined) {
+          if (resolvedInput.old_str === undefined || resolvedInput.new_str === undefined) {
             return { output: "old_str and new_str required for str_replace", isError: true };
           }
 
           // Read file, replace, write back
-          const content = await this.sandbox.readFile(this.containerId, input.path);
-          const oldStr = input.old_str;
+          const content = await this.sandbox.readFile(this.containerId, resolvedInput.path);
+          const oldStr = resolvedInput.old_str;
 
           if (!content.includes(oldStr)) {
             return {
-              output: `old_str not found in ${input.path}. Make sure the string matches exactly.`,
+              output: `old_str not found in ${resolvedInput.path}. Make sure the string matches exactly.`,
               isError: true,
             };
           }
 
-          const newContent = content.replace(oldStr, input.new_str);
-          await this.sandbox.writeFile(this.containerId, input.path, newContent);
-          return { output: `Replacement made in ${input.path}`, isError: false };
+          const newContent = content.replace(oldStr, resolvedInput.new_str);
+          await this.sandbox.writeFile(this.containerId, resolvedInput.path, newContent);
+          return { output: `Replacement made in ${resolvedInput.path}`, isError: false };
         }
 
         case "insert": {
-          if (input.insert_line === undefined || input.new_str === undefined) {
+          if (resolvedInput.insert_line === undefined || resolvedInput.new_str === undefined) {
             return { output: "insert_line and new_str required", isError: true };
           }
 
-          const fileContent = await this.sandbox.readFile(this.containerId, input.path);
+          const fileContent = await this.sandbox.readFile(this.containerId, resolvedInput.path);
           const lines = fileContent.split("\n");
-          lines.splice(input.insert_line, 0, input.new_str);
-          await this.sandbox.writeFile(this.containerId, input.path, lines.join("\n"));
-          return { output: `Inserted at line ${input.insert_line} in ${input.path}`, isError: false };
+          lines.splice(resolvedInput.insert_line, 0, resolvedInput.new_str);
+          await this.sandbox.writeFile(this.containerId, resolvedInput.path, lines.join("\n"));
+          return { output: `Inserted at line ${resolvedInput.insert_line} in ${resolvedInput.path}`, isError: false };
         }
 
         default:
-          return { output: `Unsupported editor command: ${input.command}`, isError: true };
+          return { output: `Unsupported editor command: ${resolvedInput.command}`, isError: true };
       }
     } catch (err: any) {
       return { output: `Text editor error: ${err.message}`, isError: true };
@@ -125,7 +142,8 @@ export class ToolExecutor {
 
   private async executeReadFile(input: { path: string }): Promise<ToolResult> {
     try {
-      const content = await this.sandbox.readFile(this.containerId, input.path);
+      const resolved = this.resolvePath(input.path);
+      const content = await this.sandbox.readFile(this.containerId, resolved);
       return { output: content, isError: false };
     } catch (err: any) {
       return { output: `Failed to read file: ${err.message}`, isError: true };
