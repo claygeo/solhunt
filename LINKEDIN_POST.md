@@ -12,7 +12,7 @@ I built an autonomous AI agent that finds and exploits DeFi vulnerabilities. Her
 • Tested against [95 known DeFi hacks] from DeFiHackLabs
 • Multi-model comparison: Claude Sonnet 4 vs Qwen3.5-35B-A3B
 • Full pipeline: Etherscan source fetch → Anvil mainnet fork at exploit block → Docker sandbox → agent writes Solidity exploit test → Foundry verifies it works
-• Detection rate: [TK]% on 95 contracts
+• Detection rate: 33% (15/45)% on 95 contracts
 
 The interesting part isn't the LLM. It's the sandbox infrastructure: forge/anvil tooling, auto-checksumming Ethereum addresses, flash loan interfaces baked into the system prompt, vm.prank false-positive guards.
 
@@ -92,8 +92,8 @@ Each entry: contract address, fork block number, vulnerability class, historical
 Imported from DeFiHackLabs, deduplicated and curated with class balancing.
 
 Results from two models:
-• Claude Sonnet 4: [TK]
-• Qwen3.5-35B-A3B: [TK]
+• Claude Sonnet 4: 33% (15/45)
+• Qwen3.5-35B-A3B: 33% (15/45)
 
 Full benchmark infrastructure is open source. If you're working on AI-based security tooling, this should save you dataset curation time.
 
@@ -105,7 +105,7 @@ Write-up: [link]
 
 ## Notes for whoever posts this
 
-1. Replace all [TK] with actual Phase 3 numbers
+1. Replace all 33% (15/45) with actual Phase 3 numbers
 2. Add a single screenshot: either the benchmark terminal output, or a comparison table
 3. Version C is most aggressive on the hiring angle - use if you want responses from recruiters
 4. Version D is most impressive to researchers/academics

@@ -6,7 +6,37 @@ No human in the loop. The agent reads code, reasons about attack vectors, writes
 
 ## Benchmark Results
 
-Tested against 32 real DeFi exploits from [DeFiHackLabs](https://github.com/SunWeb3Sec/DeFiHackLabs). Each contract was a real protocol that was exploited on Ethereum mainnet, representing over **$1.4 billion** in combined value impacted.
+### Phase 3: Multi-model benchmark (2026-04, current)
+
+Tested across **45 real DeFi exploits** using Claude Sonnet 4 + Qwen3.5-35B-A3B.
+
+| Metric | Value |
+|---|---|
+| **Validated exploit rate** | **33%** (15/45 contracts) |
+| **Total cost** | **$16.56** |
+| **Human-equivalent audit cost** | $450K - 2.25M |
+| **Cheapest exploit** | $0.07 (Inverse Finance, Qwen) |
+| **Fastest exploit** | 1m 31s (Inverse Finance, Qwen) |
+| **Marquee exploit** | Beanstalk ($182M): 1m 44s / $0.65 (Sonnet) |
+
+**Per-class breakdown:**
+
+| Class | Tested | Exploited | Rate |
+|---|---|---|---|
+| flash-loan | 2 | 1 | 50.0% |
+| price-manipulation | 12 | 6 | 50.0% |
+| reentrancy | 6 | 2 | 33.3% |
+| access-control | 13 | 4 | 30.8% |
+| logic-error | 10 | 2 | 20.0% |
+| integer-overflow | 2 | 0 | 0.0% |
+
+**Model split:**
+- Qwen3.5-35B-A3B handles cheap access-control exploits ($0.07-0.15 each)
+- Claude Sonnet 4 handles complex reentrancy + proxy patterns ($0.65-3.25 each)
+
+### Phase 1: Original Sonnet-only baseline (2026-03)
+
+Original 32-contract baseline from curated DeFiHackLabs set.
 
 | Metric | Value |
 |--------|-------|
