@@ -143,3 +143,21 @@ Stopping at $1.82 remaining rather than running unvalidated new contracts. The e
 ## Supabase
 
 All runs persist to Supabase (project: xogipstirlipvoaabbid). Tables: contracts, scan_runs, benchmark_runs, tool_calls. Artifacts in `solhunt-artifacts` bucket.
+
+## Post-Session Roadmap (decided 2026-04-16 pm)
+
+User is loading $40 more. Committed plan:
+
+1. **Phase 3 (~$35, this week):** Qwen3.5 pre-flight ($17) → Sonnet targeted on top candidates ($18). Ship the 100-contract benchmark.
+2. **Month 1:** Blog post + LinkedIn + Hacker News. Publicize results.
+3. **Month 2:** Apply to security researcher roles + free audits for testimonials.
+4. **Month 3:** Pick lane (job vs audit SaaS vs scale to 500).
+5. **Month 4-6 (parallel):** Bridge project. Solhunt infra + Hyperliquid tracker → MEV/simulation bot. NOT a fine-tuned exploit model doing trades. Two separate systems, shared infrastructure.
+
+Full roadmap in `~/.claude/projects/.../memory/project_solhunt_roadmap.md`.
+
+**What NOT to do:**
+- Chase 95% detection (requires fine-tuning, diminishing returns)
+- Build dashboard UI (nobody pays)
+- Fine-tune one model for both exploits and trading (wrong framing)
+- Skip publicize step to jump to trading
