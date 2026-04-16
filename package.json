@@ -22,6 +22,7 @@
     "commander": "^13.0.0",
     "dockerode": "^4.0.4",
     "dotenv": "^16.4.7",
+    "js-sha3": "^0.9.3",
     "ora": "^8.2.0"
   },
   "devDependencies": {

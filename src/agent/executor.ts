@@ -1,4 +1,5 @@
 import { SandboxManager } from "../sandbox/manager.js";
+import { keccak256 } from "js-sha3";
 
 const WORKDIR = "/workspace/scan";
 
@@ -105,6 +106,11 @@ export class ToolExecutor {
           fileText = fileText.replace(/\\t/g, "\t");
           // Remove stray leading backslashes
           fileText = fileText.replace(/^\\/m, "");
+          // Auto-fix EIP-55 checksums on Ethereum addresses in Solidity files
+          // Models often output lowercase hex addresses which Forge rejects
+          if (resolvedInput.path.endsWith(".sol")) {
+            fileText = fixSolidityChecksums(fileText);
+          }
           await this.sandbox.writeFile(this.containerId, resolvedInput.path, fileText);
           return { output: `File created: ${resolvedInput.path}`, isError: false };
         }
@@ -125,7 +131,12 @@ export class ToolExecutor {
             };
           }
 
-          const newContent = content.replace(oldStr, resolvedInput.new_str);
+          let newStr = resolvedInput.new_str;
+          // Auto-fix checksums in Solidity replacements
+          if (resolvedInput.path.endsWith(".sol")) {
+            newStr = fixSolidityChecksums(newStr);
+          }
+          const newContent = content.replace(oldStr, newStr);
           await this.sandbox.writeFile(this.containerId, resolvedInput.path, newContent);
           return { output: `Replacement made in ${resolvedInput.path}`, isError: false };
         }
@@ -191,4 +202,40 @@ export class ToolExecutor {
       };
     }
   }
+}
+
+/**
+ * EIP-55 checksum: convert a hex address to its checksummed form.
+ * Forge rejects non-checksummed addresses in Solidity source, and
+ * LLMs frequently output lowercase hex. This saves 5-10 wasted iterations.
+ * Uses keccak256 (NOT SHA3-256, they differ post-NIST).
+ */
+function toChecksumAddress(address: string): string {
+  const addr = address.toLowerCase().replace("0x", "");
+  const hash = keccak256(addr);
+  let result = "0x";
+  for (let i = 0; i < addr.length; i++) {
+    if (parseInt(hash[i], 16) >= 8) {
+      result += addr[i].toUpperCase();
+    } else {
+      result += addr[i];
+    }
+  }
+  return result;
+}
+
+/**
+ * Find all Ethereum addresses in Solidity source and apply EIP-55 checksums.
+ * Matches 0x followed by 40 hex chars that aren't already checksummed.
+ */
+function fixSolidityChecksums(source: string): string {
+  return source.replace(/0x([0-9a-fA-F]{40})\b/g, (match) => {
+    // Skip if already has mixed case (likely already checksummed)
+    const hex = match.slice(2);
+    const hasUpper = /[A-F]/.test(hex);
+    const hasLower = /[a-f]/.test(hex);
+    if (hasUpper && hasLower) return match; // Already mixed case, leave it
+    // All lowercase or all uppercase: needs checksum
+    return toChecksumAddress(match);
+  });
 }
