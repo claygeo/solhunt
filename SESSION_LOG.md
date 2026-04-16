@@ -95,6 +95,38 @@ Final Inverse Finance result after guidance update:
 
 Next large spend: flagship 100-contract Sonnet run (~$89, needs user to load more).
 
+## Session Update: Cost Safety + Qwen Retry
+
+After outside voice review ("don't spend another dollar until circuit breaker exists"), shipped cost circuit breaker in commit f1885d4:
+
+- `--max-budget <usd>`: stops benchmark when cumulative cost >= cap
+- `--per-contract-warn <usd>`: warns on expensive contracts (default $2.50)
+- Pairs with existing failure-pattern circuit breaker
+
+**Pre-flight strategy (recommended by outside voice):**
+1. Run Qwen on all 95 contracts (~$17 at $0.18/contract if Qwen3.5, or ~$33 at $0.35/contract if Qwen3.6)
+2. Identify: cheap wins (don't need Sonnet), hard failures (Sonnet can't help either), and Sonnet-worth-it contracts
+3. Run Sonnet on only the 10-20 "worth it" contracts (~$13-27)
+4. **Total: ~$30-60 instead of $89, with multi-model data from day one**
+
+**Qwen3.6-plus retry:** Hung AGAIN. Started responding on iter 1-2 then containers dropped to 0% CPU waiting on API. Twice in a row = writing off Qwen3.6 for now. Still release-day infrastructure issues.
+
+**Revised pre-flight plan:** Use Qwen3.5-35B-A3B instead.
+- Pricing: $0.16/M input, $1.30/M output = ~$0.18/contract
+- 95 contracts × $0.18 = ~$17 for full pre-flight
+- Proven architecture (same MoE design, older version)
+- Not subject to release-day chaos
+
+**Pre-flight command (when user has budget):**
+```
+npx tsx src/index.ts benchmark \
+  --dataset benchmark/dataset-100.json \
+  --provider openrouter --model qwen/qwen3.5-35b-a3b \
+  --concurrency 3 --max-budget 25
+```
+
+Circuit breaker caps spend at $25 even if cost projections are wrong.
+
 ## Autonomous Session Stop Point
 
 User stepped away at ~11am telling me to "keep going till we reach end goal, use gstack skills, always get outside voice". I accomplished:
