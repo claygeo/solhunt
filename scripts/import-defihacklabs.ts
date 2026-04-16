@@ -116,12 +116,21 @@ function normalizeChain(raw: string): string | null {
 function parseYearReadme(readmeContent: string, yearReadmePath: string): ParsedExploit[] {
   const exploits: ParsedExploit[] = [];
 
-  // Section headings: ### YYYYMMDD Name - VulnType
-  // Split the content into sections by ### headings
-  const sections = readmeContent.split(/\n###\s+/);
+  // Only split on section headings that start with a date (### YYYYMMDD).
+  // In 2023+ READMEs, "### Lost:" is also an h3 which would break naive splitting.
+  const sectionStarts: { start: number; heading: string }[] = [];
+  const sectionRegex = /^###\s+(\d{8}\s+.+)$/gm;
+  let match: RegExpExecArray | null;
+  while ((match = sectionRegex.exec(readmeContent)) !== null) {
+    sectionStarts.push({ start: match.index, heading: match[1] });
+  }
 
-  for (const section of sections.slice(1)) {
-    const firstLine = section.split("\n")[0];
+  for (let i = 0; i < sectionStarts.length; i++) {
+    const start = sectionStarts[i].start;
+    const end = i + 1 < sectionStarts.length ? sectionStarts[i + 1].start : readmeContent.length;
+    const section = readmeContent.slice(start, end);
+    const firstLine = sectionStarts[i].heading;
+
     // Match: "YYYYMMDD Name - VulnType" (with optional stuff)
     const headingMatch = firstLine.match(/^(\d{8})\s+(.+?)\s*(?:-\s*(.+?))?\s*$/);
     if (!headingMatch) continue;
@@ -129,8 +138,8 @@ function parseYearReadme(readmeContent: string, yearReadmePath: string): ParsedE
     const [, dateRaw, name, vulnTypeRaw] = headingMatch;
     if (!vulnTypeRaw) continue;
 
-    // Find Lost amount
-    const lostMatch = section.match(/####\s+Lost:\s*(.+)/i);
+    // Find Lost amount - tolerate both #### and ### heading levels
+    const lostMatch = section.match(/#{3,4}\s+Lost:\s*(.+)/i);
     const loss = lostMatch ? lostMatch[1].trim() : "unknown";
 
     // Find the test file link - either as markdown link or as forge test path
