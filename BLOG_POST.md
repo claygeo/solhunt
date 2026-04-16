@@ -1,6 +1,6 @@
 # I Built an Autonomous AI Agent That Finds DeFi Exploits. Here's What Happened.
 
-*TK: final metrics go here. Placeholder: "Running across 95 known DeFi hacks, my agent autonomously found X exploits for $Y total across two models (Claude Sonnet 4 and Qwen3.5-35B-A3B)."*
+Across 45 known DeFi hacks, my agent autonomously found and proved **15 exploits (33%)** for a total cost of **$16.56** across two models (Claude Sonnet 4 and Qwen3.5-35B-A3B). Human-equivalent audit cost: ~$450K+.
 
 ## The Pitch (30 seconds)
 
@@ -8,6 +8,7 @@
 - **Output**: a working Foundry exploit test, or a report that no vulnerability was found
 - **No human in the loop**: agent reads source, decides attack class, writes Solidity, iterates on errors, produces a pass/fail proof
 - **Beanstalk ($182M historical hack)**: found and exploited in **1m 44s for $0.65**
+- **DFX Finance ($7.5M reentrancy)**: found and exploited in **4m 52s for $3.25**
 
 If you want to skip the story: [github.com/claygeo/solhunt](https://github.com/claygeo/solhunt)
 
@@ -92,14 +93,37 @@ Each contract has: address, fork block, vulnerability class, historical loss amo
 
 ## Phase 3: The Multi-Model Benchmark
 
-TK: Qwen pre-flight + Sonnet targeted results here. Expected content:
+Ran Qwen3.5-35B-A3B across a 45-contract subset (circuit breaker fired at budget cap). Then ran Claude Sonnet 4 on a curated list of "hard failure" candidates Qwen couldn't crack. Combined results:
 
-- Qwen3.5-35B-A3B on all 95 contracts (~$X total)
-- Per-class detection rates
-- Which contracts Qwen solved cheaply
-- Which contracts neither model could handle
-- Sonnet targeted on 15-20 "candidate" contracts where Qwen failed but made progress
-- Combined coverage: X exploits found across 95 contracts for $Y total
+**45 unique contracts. 15 validated exploits. 33% detection rate. $16.56 total.**
+
+### Per-Class Breakdown
+
+| Vulnerability Class | Tested | Exploited | Rate |
+|---|---|---|---|
+| flash-loan | 2 | 1 | 50.0% |
+| price-manipulation | 12 | 6 | 50.0% |
+| reentrancy | 6 | 2 | 33.3% |
+| access-control | 13 | 4 | 30.8% |
+| logic-error | 10 | 2 | 20.0% |
+| integer-overflow | 2 | 0 | 0.0% |
+
+### The Interesting Splits
+
+**Qwen3.5 sweet spot:** Cheap access-control exploits. 6 of the 15 exploits came from Qwen at $0.07-0.15 each. For contracts with a clear access-control flaw (forgotten admin function, unrestricted initializer), the small MoE model crushes it.
+
+**Sonnet's premium:** Complex reentrancy. DFX Finance was the standout - Sonnet proved the `flash()` function's CEI violation in 19 iterations for $3.25. Qwen couldn't get this one past max iterations.
+
+**Where both failed:** Integer-overflow (0/2). These require arithmetic insight neither model brought. Also: most logic-errors (80% failed). These bugs live in multi-protocol interactions that neither model's sandbox navigates well.
+
+### Cost vs Human Audit
+
+| Approach | Cost for 45 contracts | Time |
+|---|---|---|
+| Human auditor (Trail of Bits, OpenZeppelin tier) | $450K–2.25M | 3-9 months |
+| solhunt (Qwen + Sonnet combined) | $16.56 | ~5 hours |
+
+~27,000x cheaper. Worse detection rate (humans still find things we miss), but this isn't a replacement for human audit - it's a first-pass screen.
 
 ## What I Learned
 
