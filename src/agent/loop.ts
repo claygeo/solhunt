@@ -9,6 +9,8 @@ import { ToolExecutor } from "./executor.js";
 import { getSystemPrompt, buildAnalysisPrompt } from "./prompts.js";
 import { SandboxManager } from "../sandbox/manager.js";
 import type { ExploitReport } from "../reporter/format.js";
+import type { DataCollector } from "../storage/collector.js";
+import { summarizeToolCall } from "../storage/collector.js";
 
 export interface AgentConfig {
   provider: ProviderConfig;
@@ -43,7 +45,8 @@ export async function runAgent(
   containerId: string,
   sandbox: SandboxManager,
   config: AgentConfig,
-  onIteration?: (iteration: number, toolName: string) => void
+  onIteration?: (iteration: number, toolName: string) => void,
+  collector?: DataCollector
 ): Promise<AgentResult> {
   const executor = new ToolExecutor(sandbox, containerId, config.toolTimeout);
   const tools = getToolDefinitions();
@@ -203,6 +206,7 @@ export async function runAgent(
     const iterationsLeft = config.maxIterations - iterations;
     if (iterationsLeft <= 3) {
       messages.push(assistantMessage);
+      collector?.recordMessage(assistantMessage);
 
       // Execute tool calls first so the model sees results
       for (const toolCall of assistantMessage.tool_calls) {
@@ -214,12 +218,16 @@ export async function runAgent(
           toolInput = { command: toolCall.function.arguments };
         }
         onIteration?.(iterations, toolName);
+        const toolStart = Date.now();
         const result = await executor.execute(toolName, toolInput);
+        collector?.recordToolCall(iterations, toolName, Date.now() - toolStart, result.isError ?? false, summarizeToolCall(toolName, toolInput));
         let output = result.output;
         if (output.length > 50_000) {
           output = output.slice(0, 25_000) + "\n\n... [truncated] ...\n\n" + output.slice(-25_000);
         }
-        messages.push({ role: "tool", tool_call_id: toolCall.id, name: toolName, content: output });
+        const toolMsg: Message = { role: "tool", tool_call_id: toolCall.id, name: toolName, content: output };
+        messages.push(toolMsg);
+        collector?.recordMessage(toolMsg);
       }
 
       // Now force the report
@@ -255,6 +263,7 @@ export async function runAgent(
     );
     if (iterations >= 8 && !hasWrittenTest) {
       messages.push(assistantMessage);
+      collector?.recordMessage(assistantMessage);
       // Execute the current tool calls first
       for (const toolCall of assistantMessage.tool_calls) {
         const toolName = toolCall.function.name;
@@ -262,12 +271,16 @@ export async function runAgent(
         try { toolInput = JSON.parse(toolCall.function.arguments); }
         catch { toolInput = { command: toolCall.function.arguments }; }
         onIteration?.(iterations, toolName);
+        const toolStart = Date.now();
         const result = await executor.execute(toolName, toolInput);
+        collector?.recordToolCall(iterations, toolName, Date.now() - toolStart, result.isError ?? false, summarizeToolCall(toolName, toolInput));
         let output = result.output;
         if (output.length > 50_000) {
           output = output.slice(0, 25_000) + "\n\n... [truncated] ...\n\n" + output.slice(-25_000);
         }
-        messages.push({ role: "tool", tool_call_id: toolCall.id, name: toolName, content: output });
+        const toolMsg: Message = { role: "tool", tool_call_id: toolCall.id, name: toolName, content: output };
+        messages.push(toolMsg);
+        collector?.recordMessage(toolMsg);
       }
       messages.push({
         role: "user",
@@ -278,6 +291,7 @@ export async function runAgent(
 
     // Add assistant message to history
     messages.push(assistantMessage);
+    collector?.recordMessage(assistantMessage);
 
     // Execute each tool call and push results
     for (const toolCall of assistantMessage.tool_calls) {
@@ -292,7 +306,9 @@ export async function runAgent(
 
       onIteration?.(iterations, toolName);
 
+      const toolStart = Date.now();
       const result = await executor.execute(toolName, toolInput);
+      collector?.recordToolCall(iterations, toolName, Date.now() - toolStart, result.isError ?? false, summarizeToolCall(toolName, toolInput));
 
       // Truncate very long outputs to avoid filling context
       let output = result.output;
@@ -303,12 +319,14 @@ export async function runAgent(
           output.slice(-25_000);
       }
 
-      messages.push({
+      const toolMsg: Message = {
         role: "tool",
         tool_call_id: toolCall.id,
         name: toolName,
         content: output,
-      });
+      };
+      messages.push(toolMsg);
+      collector?.recordMessage(toolMsg);
     }
   }
 

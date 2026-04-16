@@ -18,6 +18,8 @@ import { calculateCost } from "./reporter/format.js";
 import { renderReport, renderBenchmarkTable } from "./reporter/markdown.js";
 import type { ScanResult } from "./reporter/format.js";
 import { runBenchmark } from "./benchmark/runner.js";
+import { isEnabled as isStorageEnabled, DataCollector, upsertContract, insertScanRun } from "./storage/index.js";
+import { hostname } from "node:os";
 
 dotenv.config();
 
@@ -195,6 +197,10 @@ program
       }
 
       // Run agent
+      const collector = isStorageEnabled() ? new DataCollector() : undefined;
+      collector?.setContractSource(sources);
+      if (reconData) collector?.setReconData(reconData);
+
       spinner.text = `Agent analyzing contract (${providerConfig.provider}/${providerConfig.model})...`;
       const agentResult = await runAgent(
         {
@@ -215,8 +221,18 @@ program
         },
         (iter, tool) => {
           spinner.text = `Agent iteration ${iter}: ${tool}`;
-        }
+        },
+        collector
       );
+
+      // Extract exploit code before container is destroyed
+      if (containerId && collector) {
+        const exploitCode = await sandbox.tryReadFile(
+          containerId,
+          "/workspace/scan/test/Exploit.t.sol"
+        );
+        collector.setExploitCode(exploitCode);
+      }
 
       spinner.succeed("Scan complete");
 
@@ -236,6 +252,44 @@ program
         durationMs: agentResult.durationMs,
         error: agentResult.error,
       };
+
+      // Persist to Supabase (fire-and-forget)
+      if (collector && target.startsWith("0x")) {
+        (async () => {
+          try {
+            const contractId = await upsertContract({
+              address: target,
+              chain: options.chain,
+              name: contractName,
+              block_number: options.block ? parseInt(options.block) : undefined,
+            });
+            if (!contractId) return;
+            const scanRunId = await insertScanRun({
+              contract_id: contractId,
+              provider: providerConfig.provider,
+              model: providerConfig.model,
+              found: scanResult.report?.found ?? null,
+              vuln_class: scanResult.report?.vulnerability?.class,
+              severity: scanResult.report?.vulnerability?.severity,
+              functions: scanResult.report?.vulnerability?.functions,
+              description: scanResult.report?.vulnerability?.description,
+              test_passed: scanResult.report?.exploit?.executed,
+              value_at_risk: scanResult.report?.exploit?.valueAtRisk,
+              input_tokens: scanResult.cost.inputTokens,
+              output_tokens: scanResult.cost.outputTokens,
+              cost_usd: scanResult.cost.totalUSD,
+              duration_ms: scanResult.durationMs,
+              iterations: scanResult.iterations,
+              max_iterations: parseInt(options.maxIterations),
+              error: scanResult.error,
+              hostname: hostname(),
+            });
+            if (scanRunId) await collector.flush(scanRunId);
+          } catch (err: any) {
+            console.error(`[storage] ${err.message}`);
+          }
+        })();
+      }
 
       if (options.json) {
         console.log(JSON.stringify(scanResult, null, 2));
@@ -320,6 +374,7 @@ program
       }},
       { name: "ETHERSCAN_API_KEY", check: async () => !!process.env.ETHERSCAN_API_KEY },
       { name: "ETH_RPC_URL", check: async () => !!process.env.ETH_RPC_URL },
+      { name: "Supabase (optional)", check: async () => isStorageEnabled() },
     ];
 
     console.log(chalk.bold("\nsolhunt health check\n"));

@@ -161,6 +161,14 @@ export class SandboxManager {
     return result.stdout;
   }
 
+  async tryReadFile(containerId: string, path: string): Promise<string | null> {
+    try {
+      return await this.readFile(containerId, path);
+    } catch {
+      return null;
+    }
+  }
+
   async destroyContainer(containerId: string): Promise<void> {
     try {
       const container = this.docker.getContainer(containerId);
