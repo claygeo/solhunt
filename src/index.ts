@@ -316,6 +316,8 @@ program
   .option("--model <model>", "Model to use (overrides provider default)")
   .option("--output <path>", "Output results JSON path")
   .option("--json", "Output as JSON", false)
+  .option("--max-budget <usd>", "Global budget cap in USD - stops benchmark if exceeded (recommended for large runs)")
+  .option("--per-contract-warn <usd>", "Warn if any contract exceeds this cost", "2.50")
   .action(async (options) => {
     const etherscanKey = process.env.ETHERSCAN_API_KEY;
     const rpcUrl = process.env.ETH_RPC_URL;
@@ -342,6 +344,8 @@ program
         etherscanKey,
         rpcUrl,
         outputPath: options.output,
+        maxBudgetUsd: options.maxBudget ? parseFloat(options.maxBudget) : undefined,
+        perContractBudgetWarnUsd: parseFloat(options.perContractWarn),
       });
 
       if (options.json) {

@@ -32,6 +32,10 @@ export interface BenchmarkConfig {
   etherscanKey: string;
   rpcUrl: string;
   outputPath?: string;
+  /** Global budget cap in USD. Stop benchmark if total cost exceeds this. */
+  maxBudgetUsd?: number;
+  /** Per-contract budget warning threshold. Logs warning but doesn't stop. */
+  perContractBudgetWarnUsd?: number;
 }
 
 export async function runBenchmark(
@@ -114,6 +118,28 @@ export async function runBenchmark(
         console.log(chalk.red(`\n[CIRCUIT BREAKER] Last 3 contracts hit the same error: ${last3[0].error?.slice(0, 80)}`));
         console.log(chalk.red("Stopping to avoid wasting budget.\n"));
         break;
+      }
+    }
+
+    // Cost circuit breaker: stop if total cost exceeds global budget cap
+    if (config.maxBudgetUsd) {
+      const spent = results.reduce((sum, r) => sum + r.cost.totalUSD, 0);
+      if (spent >= config.maxBudgetUsd) {
+        console.log(chalk.red(`\n[BUDGET CIRCUIT BREAKER] Spent $${spent.toFixed(2)} >= budget cap $${config.maxBudgetUsd.toFixed(2)}.`));
+        console.log(chalk.red(`Stopping after ${results.length}/${entries.length} contracts to prevent overspend.\n`));
+        break;
+      }
+      // Warn at 75% of budget
+      if (spent >= config.maxBudgetUsd * 0.75 && spent < config.maxBudgetUsd * 0.8) {
+        console.log(chalk.yellow(`\n[BUDGET WARNING] Spent $${spent.toFixed(2)} / $${config.maxBudgetUsd.toFixed(2)} (${((spent/config.maxBudgetUsd)*100).toFixed(0)}%). ${entries.length - results.length} contracts remaining.`));
+      }
+    }
+
+    // Per-contract budget warning: flag expensive contracts
+    if (config.perContractBudgetWarnUsd) {
+      const lastResult = results[results.length - 1];
+      if (lastResult && lastResult.cost.totalUSD > config.perContractBudgetWarnUsd) {
+        console.log(chalk.yellow(`[BUDGET WARN] Last contract cost $${lastResult.cost.totalUSD.toFixed(2)}, exceeds per-contract threshold of $${config.perContractBudgetWarnUsd.toFixed(2)}`));
       }
     }
 
