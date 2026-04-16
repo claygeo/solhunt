@@ -23,7 +23,7 @@ export function buildAnalysisPrompt(params: {
 
   // Include source code directly in the prompt to reduce tool-use iterations.
   // Truncate if total source is too large (prevents prompt overflow on local models).
-  const MAX_SOURCE_CHARS = 30_000;
+  const MAX_SOURCE_CHARS = 50_000;
   let totalChars = params.sourceFiles.reduce((sum, f) => sum + f.content.length, 0);
 
   let sourceContents: string;
@@ -32,17 +32,54 @@ export function buildAnalysisPrompt(params: {
       .map((f) => `### ${f.filename}\n\`\`\`solidity\n${f.content}\n\`\`\``)
       .join("\n\n");
   } else {
-    // For large contracts: include first file in full, summarize the rest
-    const primary = params.sourceFiles[0];
-    const primaryContent = primary.content.length > MAX_SOURCE_CHARS
-      ? primary.content.slice(0, MAX_SOURCE_CHARS) + "\n// ... [truncated, use read_file to see full source]"
-      : primary.content;
-    const otherFiles = params.sourceFiles.slice(1).map(f =>
-      `- \`src/${f.filename}\` (${f.content.length} chars)`
-    ).join("\n");
-    sourceContents = `### ${primary.filename}\n\`\`\`solidity\n${primaryContent}\n\`\`\`\n\n` +
-      (otherFiles ? `### Other source files (use read_file or bash to inspect):\n${otherFiles}` : "");
+    // For large contracts: include as many files as possible up to the limit,
+    // then summarize the rest. Prioritize the main contract file first.
+    const included: string[] = [];
+    let charBudget = MAX_SOURCE_CHARS;
+    const remaining: { filename: string; chars: number }[] = [];
+
+    for (const f of params.sourceFiles) {
+      if (f.content.length <= charBudget) {
+        included.push(`### ${f.filename}\n\`\`\`solidity\n${f.content}\n\`\`\``);
+        charBudget -= f.content.length;
+      } else if (included.length === 0) {
+        // First file is too large: truncate it
+        included.push(`### ${f.filename}\n\`\`\`solidity\n${f.content.slice(0, charBudget)}\n// ... [truncated, use read_file to see full source]\n\`\`\``);
+        charBudget = 0;
+      } else {
+        remaining.push({ filename: f.filename, chars: f.content.length });
+      }
+    }
+
+    sourceContents = included.join("\n\n");
+    if (remaining.length > 0) {
+      const otherFiles = remaining.map(f =>
+        `- \`src/${f.filename}\` (${f.chars} chars)`
+      ).join("\n");
+      sourceContents += `\n\n### Other source files (use read_file or bash to inspect):\n${otherFiles}`;
+    }
   }
+
+  // Structural summary: list external calls, imports, and key patterns to guide analysis
+  const externalCalls = new Set<string>();
+  const importPatterns = new Set<string>();
+  for (const f of params.sourceFiles) {
+    // Detect external protocol references
+    const protocols = ["uniswap", "aave", "compound", "curve", "balancer", "chainlink", "sushiswap", "maker", "yearn"];
+    for (const p of protocols) {
+      if (f.content.toLowerCase().includes(p)) importPatterns.add(p);
+    }
+    // Detect flash loan patterns
+    if (/flash(Loan|loan|Borrow|borrow)|IFlash/i.test(f.content)) importPatterns.add("flash-loan");
+    // Detect delegatecall
+    if (/delegatecall/i.test(f.content)) importPatterns.add("delegatecall");
+    // Detect proxy patterns
+    if (/fallback|_implementation|upgradeTo|Diamond/i.test(f.content)) importPatterns.add("proxy-pattern");
+  }
+
+  const structuralHints = importPatterns.size > 0
+    ? `\n**Detected patterns:** ${[...importPatterns].join(", ")}\n`
+    : "";
 
   const reconSection = params.reconData ? `\n${params.reconData}\n` : "";
 
@@ -59,7 +96,7 @@ Source code is in \`/workspace/scan/src/\`:
 ${sourceList}
 
 ${sourceContents}
-${reconSection}
+${structuralHints}${reconSection}
 ## Your Plan
 
 1. Read the source above. Identify the vulnerability class.

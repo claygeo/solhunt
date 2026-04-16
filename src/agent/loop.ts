@@ -95,13 +95,28 @@ export async function runAgent(
       const recent = messages.slice(-6); // last 3 pairs
       const middle = messages.slice(2, -6);
 
-      // Compress middle messages: keep structure but truncate long tool outputs
+      // Smart context trimming: preserve messages containing error signals
+      // and forge test results. Only truncate verbose output (build logs, source reads).
+      const ERROR_KEYWORDS = /\b(Error|FAIL|PASS|revert|panic|overflow|underflow|unauthorized)\b/i;
       const compressed = middle.map(m => {
-        if (m.role === "tool" && m.content && m.content.length > 200) {
-          return { ...m, content: m.content.slice(0, 200) + "\n[... output truncated ...]" };
+        if (m.role === "tool" && m.content && m.content.length > 500) {
+          // Always preserve forge_test output in full (pass or fail, agent needs this)
+          if (m.name === "forge_test") {
+            return m.content.length > 5000
+              ? { ...m, content: m.content.slice(0, 5000) + "\n[... forge output truncated ...]" }
+              : m;
+          }
+          // Preserve messages with error signals (longer limit)
+          if (ERROR_KEYWORDS.test(m.content)) {
+            return m.content.length > 2000
+              ? { ...m, content: m.content.slice(0, 2000) + "\n[... output truncated ...]" }
+              : m;
+          }
+          // Verbose output (source reads, build logs): aggressive truncation
+          return { ...m, content: m.content.slice(0, 300) + "\n[... output truncated ...]" };
         }
-        if (m.role === "assistant" && m.content && m.content.length > 200) {
-          return { ...m, content: m.content.slice(0, 200) + "\n[... truncated ...]" };
+        if (m.role === "assistant" && m.content && m.content.length > 500) {
+          return { ...m, content: m.content.slice(0, 500) + "\n[... truncated ...]" };
         }
         return m;
       });
