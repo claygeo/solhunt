@@ -135,8 +135,9 @@ export async function chatCompletion(
     headers["X-Title"] = "solhunt";
   }
 
-  // Disable thinking/reasoning for Qwen3.5 models (saves ~2-3min per call on CPU)
-  const isQwen35 = config.model.includes("qwen3.5");
+  // Disable thinking/reasoning for Qwen3 family (saves ~2-3min per call on CPU).
+  // /no_think directive works for qwen3.5, qwen3.6, and newer variants.
+  const isQwen35 = /qwen3[.-](5|6)/i.test(config.model) || config.model.includes("qwen3.5") || config.model.includes("qwen3.6");
   let formattedMessages = messages.map(formatMessage);
 
   // Gemini requires every message to have non-empty content.
