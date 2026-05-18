@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0d0e12;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+    overflow: hidden;
+  }
+  .card {
+    background: #0d0e12;
+    padding: 56px 64px 48px;
+    width: 1600px;
+    color: #e8eaed;
+  }
+
+  .header {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    margin-bottom: 10px;
+  }
+  .logo {
+    font-size: 44px;
+    font-weight: 800;
+    color: #4c95ff;
+    letter-spacing: -1px;
+  }
+  .tag {
+    font-size: 16px;
+    color: #8a8d96;
+  }
+  .subtitle {
+    color: #8a8d96;
+    font-size: 17px;
+    line-height: 1.45;
+    margin-bottom: 44px;
+    max-width: 1100px;
+  }
+
+  .centerpiece-label {
+    text-align: center;
+    font-size: 13px;
+    color: #6a6d76;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 18px;
+  }
+  .hero-number {
+    text-align: center;
+    font-size: 168px;
+    font-weight: 800;
+    color: #ff6b35;
+    letter-spacing: -6px;
+    line-height: 0.95;
+    margin-bottom: 18px;
+  }
+  .hero-desc {
+    text-align: center;
+    font-size: 18px;
+    color: #c4c7d0;
+    line-height: 1.5;
+    max-width: 1100px;
+    margin: 0 auto 44px;
+  }
+  .hero-desc b { color: #e8eaed; font-weight: 700; }
+  .hero-desc .green { color: #4ade80; font-weight: 700; }
+
+  .stats {
+    display: flex;
+    justify-content: center;
+    gap: 110px;
+    margin-bottom: 48px;
+  }
+  .stat { text-align: center; }
+  .stat-value {
+    font-size: 52px;
+    font-weight: 800;
+    color: #e8eaed;
+    letter-spacing: -1.5px;
+    line-height: 1;
+  }
+  .stat-value .dim { color: #4a4d56; }
+  .stat-label {
+    font-size: 12px;
+    color: #8a8d96;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-top: 10px;
+  }
+
+  .section-tag {
+    font-size: 12px;
+    color: #6a6d76;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+    padding-top: 28px;
+    border-top: 1px solid #1f2128;
+  }
+
+  .bars { margin-bottom: 40px; }
+  .bar-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 14px;
+    gap: 16px;
+  }
+  .bar-label {
+    width: 220px;
+    font-size: 15px;
+    color: #c4c7d0;
+  }
+  .bar-track {
+    flex: 1;
+    height: 30px;
+    background: #15171c;
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+  }
+  .bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    padding-left: 12px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+  }
+  .bar-fill.green { background: #4ade80; color: #06281a; }
+  .bar-fill.amber { background: #fbbf24; color: #3a2c08; }
+  .bar-fill.orange { background: #ff6b35; }
+  .bar-right {
+    width: 280px;
+    font-size: 13px;
+    color: #8a8d96;
+    text-align: right;
+  }
+  .bar-right b { color: #c4c7d0; font-weight: 600; }
+
+  .footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 28px;
+    border-top: 1px solid #1f2128;
+  }
+  .footer-left {
+    font-size: 12px;
+    color: #6a6d76;
+    line-height: 1.6;
+  }
+  .footer-right { display: flex; gap: 8px; }
+  .chip {
+    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: 14px;
+    border: 1px solid #2a2d36;
+    color: #8a8d96;
+    background: #15171c;
+  }
+  .chip.accent {
+    border-color: #ff6b35;
+    color: #ff6b35;
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="header">
+    <span class="logo">solhunt</span>
+    <span class="tag">autonomous exploit agent</span>
+  </div>
+  <div class="subtitle">
+    AI agent reads Solidity, writes Foundry exploit tests, executes on a forked chain.
+    No human in the loop. Benchmarked on 31 real DeFi hacks from DeFiHackLabs.
+  </div>
+
+  <div class="centerpiece-label">HEADLINE — EXPLOIT RATE VS ANTHROPIC SCONE-BENCH</div>
+  <div class="hero-number">67.7%</div>
+  <div class="hero-desc">
+    <b>21 of 31 real DeFi hacks reproduced autonomously</b> on Claude Sonnet 4.
+    Anthropic's research team reported <b>51.1%</b> on the same class of task.
+    Beanstalk ($182M) in <b>1m 44s for $0.65</b>. Poly Network ($611M) for <b>$0.72</b>.
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-value">21<span class="dim">/31</span></div>
+      <div class="stat-label">Contracts Exploited</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">$0.89</div>
+      <div class="stat-label">Avg Cost / Contract</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">$28.64</div>
+      <div class="stat-label">Total Benchmark Spend</div>
+    </div>
+  </div>
+
+  <div class="section-tag">RESULTS BY VULNERABILITY CLASS · CLAUDE SONNET 4 · DEFIHACKLABS</div>
+
+  <div class="bars">
+    <div class="bar-row">
+      <div class="bar-label">reentrancy</div>
+      <div class="bar-track"><div class="bar-fill green" style="width: 83%">5 / 6 &nbsp;·&nbsp; 83%</div></div>
+      <div class="bar-right">Rari Capital Fuse · <b>$80M</b></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">access control</div>
+      <div class="bar-track"><div class="bar-fill green" style="width: 75%">6 / 8 &nbsp;·&nbsp; 75%</div></div>
+      <div class="bar-right">Poly Network · <b>$611M</b></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">logic error</div>
+      <div class="bar-track"><div class="bar-fill amber" style="width: 60%">3 / 5 &nbsp;·&nbsp; 60%</div></div>
+      <div class="bar-right">Nomad Bridge · <b>$152M</b></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">price manipulation</div>
+      <div class="bar-track"><div class="bar-fill amber" style="width: 57%">4 / 7 &nbsp;·&nbsp; 57%</div></div>
+      <div class="bar-right">Saddle Finance · <b>$11.9M</b></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">flash loan</div>
+      <div class="bar-track"><div class="bar-fill orange" style="width: 50%">1 / 2 &nbsp;·&nbsp; 50%</div></div>
+      <div class="bar-right">Beanstalk · <b>$182M</b></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">integer overflow</div>
+      <div class="bar-track"><div class="bar-fill orange" style="width: 50%">1 / 2 &nbsp;·&nbsp; 50%</div></div>
+      <div class="bar-right">HopeLend · <b>$825K</b></div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div class="footer-left">
+      31 contracts · Claude Sonnet 4 via OpenRouter<br>
+      Docker sandbox · Anvil fork · Etherscan source ingestion
+    </div>
+    <div class="footer-right">
+      <span class="chip">Foundry</span>
+      <span class="chip">Anvil fork</span>
+      <span class="chip">Etherscan</span>
+      <span class="chip accent">Sonnet 4</span>
+    </div>
+  </div>
+</div>
+</body>
+</html>
