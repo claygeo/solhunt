@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0d0e12; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif; overflow: hidden; }
+  .banner {
+    width: 1500px;
+    height: 500px;
+    background:
+      radial-gradient(circle at 85% 50%, rgba(255, 107, 53, 0.12), transparent 55%),
+      radial-gradient(circle at 15% 30%, rgba(76, 149, 255, 0.08), transparent 50%),
+      #0d0e12;
+    color: #e8eaed;
+    position: relative;
+    padding: 60px 80px;
+    overflow: hidden;
+  }
+
+  /* faint grid texture */
+  .banner::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+  }
+
+  .content {
+    position: relative;
+    z-index: 2;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    /* shift right so pfp (bottom-left) doesn't collide */
+    margin-left: 280px;
+  }
+
+  .logo {
+    font-size: 96px;
+    font-weight: 800;
+    color: #4c95ff;
+    letter-spacing: -3px;
+    line-height: 1;
+    margin-bottom: 18px;
+  }
+
+  .tagline {
+    font-size: 24px;
+    color: #c4c7d0;
+    line-height: 1.35;
+    max-width: 900px;
+    font-weight: 400;
+  }
+  .tagline b { color: #e8eaed; font-weight: 700; }
+  .tagline .orange { color: #ff6b35; font-weight: 700; }
+
+  .chips {
+    display: flex;
+    gap: 10px;
+    margin-top: 28px;
+  }
+  .chip {
+    font-size: 13px;
+    padding: 7px 14px;
+    border-radius: 16px;
+    border: 1px solid #2a2d36;
+    color: #8a8d96;
+    background: rgba(21, 23, 28, 0.6);
+    letter-spacing: 0.3px;
+  }
+  .chip.accent { border-color: #ff6b35; color: #ff6b35; }
+
+  /* corner stat block */
+  .stat-block {
+    position: absolute;
+    top: 56px;
+    right: 80px;
+    text-align: right;
+    z-index: 2;
+  }
+  .stat-num {
+    font-size: 88px;
+    font-weight: 800;
+    color: #ff6b35;
+    letter-spacing: -3px;
+    line-height: 1;
+  }
+  .stat-label {
+    font-size: 13px;
+    color: #8a8d96;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-top: 8px;
+  }
+  .stat-sub {
+    font-size: 13px;
+    color: #6a6d76;
+    margin-top: 4px;
+  }
+</style>
+</head>
+<body>
+<div class="banner">
+  <div class="stat-block">
+    <div class="stat-num">67.7%</div>
+    <div class="stat-label">Exploit Rate</div>
+    <div class="stat-sub">31 real DeFi hacks · Sonnet 4</div>
+  </div>
+
+  <div class="content">
+    <div class="logo">solhunt</div>
+    <div class="tagline">
+      Autonomous AI agent that finds and exploits <b>smart contract vulnerabilities</b>.
+      Reads Solidity, writes Foundry tests, executes on a forked chain. <span class="orange">No human in the loop.</span>
+    </div>
+    <div class="chips">
+      <span class="chip">Foundry</span>
+      <span class="chip">Anvil fork</span>
+      <span class="chip">Docker sandbox</span>
+      <span class="chip accent">Claude Sonnet 4</span>
+    </div>
+  </div>
+</div>
+</body>
+</html>
