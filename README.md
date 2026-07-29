@@ -1,19 +1,35 @@
 # solhunt
 
-Autonomous AI agent that finds and exploits smart contract vulnerabilities. Give it a contract address, and it forks the blockchain, analyzes the source code, writes a Solidity exploit test, executes it, and produces a structured vulnerability report.
+[![CI](https://github.com/claygeo/solhunt/actions/workflows/ci.yml/badge.svg)](https://github.com/claygeo/solhunt/actions/workflows/ci.yml)
 
-No human in the loop. The agent reads code, reasons about attack vectors, writes Solidity, runs `forge test`, reads compiler errors, fixes its own code, and iterates until the exploit passes or it runs out of attempts.
+Experimental smart-contract security research harness for authorized targets and historical incidents. Give it a contract address or local Solidity source. Address scans replay chain state on a local Anvil fork; local-source scans use an unforked local Anvil instance. Solhunt analyzes the source, writes and executes a Solidity proof-of-concept test, and produces a structured report.
+
+> [!CAUTION]
+> **Authorized defensive use only.** Run Solhunt only against contracts you own, targets you are explicitly authorized to assess, or historical/local test fixtures. The documented workflow generates and runs proofs of concept against local source files or forked chain state inside Docker and Foundry. It is not permission to attack a live network. Do not use it to disrupt, drain, or otherwise exploit third-party systems.
+>
+> **Treat contract source as untrusted prompt input.** Malicious source text can attempt prompt injection, and the model receives an arbitrary Bash tool inside a networked container that also receives `ETH_RPC_URL`. Use a disposable, rate-limited RPC key with no wallet authority. Never expose wallet keys, production credentials, or sensitive host data while running Solhunt. Contract source and analysis context are sent to the configured model provider unless you use a local model, so do not submit proprietary source without authorization.
+
+Within a scan, the agent loop reads code, reasons about attack vectors, writes Solidity, runs `forge test`, reads compiler errors, revises its proof of concept, and iterates until the test passes or it reaches its configured limits.
 
 ## Benchmark Results
 
-### Phase 1: Original Sonnet baseline (curated 32-contract set)
+These are internal, model-reported benchmark summaries rather than independently reproduced security findings:
+
+| Run | Model-reported passing proofs | Limitations |
+|---|---:|---|
+| Expanded class-balanced partial run | **12.8%** (6/47 completed scans) | First 47 completed scans from an ordered 95-contract set built with class caps and recency preference; not random |
+| Curated capability run | **67.7%** (21/31 scorable contracts) | Approachable, source-available historical incidents; not representative of arbitrary contracts |
+
+The current scorer trusts the model's structured `testPassed` field; it does not bind each result to persisted Forge output. Raw per-run artifacts for these headline figures are not published here, so the percentages are not independently reproducible from this repository. Use them as bounded development-evaluation evidence, not as an audited detection rate.
+
+### Phase 1: Curated capability benchmark (32-contract set)
 
 Original 32-contract baseline from curated DeFiHackLabs set.
 
 | Metric | Value |
 |--------|-------|
-| **Exploit rate** | **67.7%** (21/31 contracts) |
-| **Avg cost per contract** | $0.89 |
+| **Model-reported passing proof rate** | **67.7%** (21/31 contracts) |
+| **Avg cost per scorable contract** | $0.92 |
 | **Total benchmark cost** | $28.64 |
 | **Model** | Claude Sonnet 4 (via OpenRouter) |
 
@@ -26,14 +42,16 @@ For reference, [Anthropic's research team (SCONE-bench)](https://red.anthropic.c
 | Category | Tested | Exploited | Rate |
 |----------|--------|-----------|------|
 | Reentrancy | 6 | 5 | 83.3% |
-| Access Control | 8 | 6 | 75.0% |
-| Price Manipulation | 7 | 4 | 57.1% |
-| Logic Error | 5 | 3 | 60.0% |
-| Flash Loan | 2 | 1 | 50.0% |
+| Access Control | 8 | 7 | 87.5% |
+| Price Manipulation | 8 | 4 | 50.0% |
+| Logic Error | 5 | 2 | 40.0% |
+| Flash Loan | 2 | 2 | 100.0% |
 | Integer Overflow | 2 | 1 | 50.0% |
 
 <details>
 <summary>Full results (31 contracts)</summary>
+
+`EXPLOITED` means the model reported a passing Forge proof-of-concept test in its structured result. The scorer did not independently bind that claim to stored Forge output.
 
 | # | Contract | Class | Value Impacted | Result | Cost |
 |---|----------|-------|----------------|--------|------|
@@ -71,11 +89,11 @@ For reference, [Anthropic's research team (SCONE-bench)](https://red.anthropic.c
 
 </details>
 
-### Phase 3: Expanded multi-model benchmark (April 2026)
+### Phase 3: Expanded class-balanced partial run (April 2026)
 
-After expanding the dataset to 95 contracts via [DeFiHackLabs](https://github.com/SunWeb3Sec/DeFiHackLabs) import, ran a multi-model benchmark on Claude Sonnet 4 + Qwen3.5-35B-A3B.
+The dataset was expanded to 95 contracts via a [DeFiHackLabs](https://github.com/SunWeb3Sec/DeFiHackLabs) import while retaining the original 32, applying vulnerability-class caps, and preferring newer imports. A partial multi-model run was then attempted with Claude Sonnet 4 + Qwen3.5-35B-A3B. The 47 completed Qwen scans were processed in dataset order, so this was neither a random nor a representative sample.
 
-**Key finding: detection rate drops significantly on a non-curated dataset.** The original 32-contract benchmark was implicitly cherry-picked for contracts with good source code and clear attack vectors. A random sample from DeFiHackLabs includes:
+**Observed in this broader partial run:** the model-reported passing-proof rate was much lower than on the original curated set. The expanded set includes:
 - Unverified contracts (no source available on Etherscan)
 - Multi-protocol exploits requiring cross-contract orchestration
 - BSC/Arbitrum contracts mislabeled in the import
@@ -85,25 +103,23 @@ After expanding the dataset to 95 contracts via [DeFiHackLabs](https://github.co
 
 | Metric | Value |
 |---|---|
-| Validated exploits | **6 (12.8%)** |
+| Model-reported passing proofs | **6 (12.8%)** |
 | Total cost | $7.76 |
-| Cost per validated exploit | $1.29 |
+| Cost per reported passing proof | $1.29 |
 
-All 6 Qwen wins were access-control or simple reentrancy at $0.07-$0.15 each. Qwen does not currently handle complex proxy or flash-loan exploits.
+The six reported Qwen passes were access-control or simple reentrancy cases at $0.07-$0.15 each. This run did not produce passing proofs for complex proxy or flash-loan incidents.
 
 **Sonnet targeted (6 scans on Qwen-failed candidates):**
 
 | Metric | Value |
 |---|---|
-| Validated exploits | **1 (DFX Finance reentrancy)** |
+| Model-reported passing proofs | **1 (DFX Finance reentrancy)** |
 | Cost for the win | $3.25 |
 | Cost for 5 failures | $6.05 |
 
 The 5 Sonnet failures were contracts requiring multi-protocol flash loans and non-standard token balance manipulation. Our sandbox doesn't currently expose cheatcodes for those.
 
-**Honest assessment:** The 67.7% rate on the curated set doesn't generalize. On a random sample, detection drops to ~13%. The curated number reflects "what this agent CAN do when the contract is approachable." The expanded number reflects "what it does against arbitrary exploits."
-
-Both are honest. Different questions.
+**Bounded interpretation:** the 67.7% curated result does not generalize. The expanded partial run reported 12.8%, but it was class-balanced, ordered, incomplete, and is not independently reproducible from artifacts in this repository. It is useful as internal evaluation evidence, not as a claim about arbitrary contracts.
 
 ## How It Works
 
@@ -147,9 +163,9 @@ The core loop (`src/agent/loop.ts`) orchestrates the full scan:
 
 1. **Pre-scan recon** queries the forked chain before the agent starts, gathering ETH balance, code size, owner address, token info (name, symbol, decimals, totalSupply), DEX pair data (token0, token1, reserves), storage slot 0, and EIP-1967 proxy implementation address. All 13 queries run in parallel with 10s timeouts. This saves 3-5 iterations the agent would waste on discovery.
 
-2. **Source injection.** The analysis prompt includes up to 30KB of contract source code inline (not behind a tool call), so the agent starts reasoning about vulnerabilities immediately. For larger contracts, the first file is included in full and remaining files are summarized with signatures only.
+2. **Source injection.** The analysis prompt includes complete source files inline until a 50,000-character budget is reached. Files that do not fit are listed by filename and character count rather than summarized as signatures.
 
-3. **Agent iteration.** The agent calls tools (bash, text editor, forge_test) to analyze and exploit the contract. Each tool call executes inside an isolated Docker container via `docker exec`. The agent sees tool output, decides its next action, and iterates. Max 30 iterations, 1 hour timeout.
+3. **Agent iteration.** The agent calls tools (bash, text editor, forge_test) to analyze and exploit the contract. Each tool call executes inside an isolated Docker container via `docker exec`. The agent sees tool output, decides its next action, and iterates. CLI scans default to 30 iterations and a 60-minute timeout; benchmark scans use a 30-minute timeout.
 
 4. **Report extraction.** When the agent wraps its findings in `===SOLHUNT_REPORT_START===` / `===SOLHUNT_REPORT_END===` markers, the loop breaks immediately and parses the structured JSON.
 
@@ -178,12 +194,13 @@ The agent loop has several mechanisms to prevent wasted iterations:
 Each scan runs in its own Docker container built from `ghcr.io/foundry-rs/foundry:latest`:
 
 - **Pre-cached DeFi dependencies:** OpenZeppelin, Uniswap V2/V3 core, and Chainlink are pre-installed in the Docker image. Each scan copies from `/workspace/template` to `/workspace/scan`, avoiding `forge init` overhead.
-- **Resource limits:** 2 CPU cores, 4GB RAM, 512MB tmpfs
-- **Security:** `no-new-privileges` flag, bridge-only networking (no host network access)
+- **Resource limits:** CLI-created scan containers are capped at 2 CPU cores and 4GB RAM
+- **Containment:** Generated code runs in an ephemeral Docker container with CPU and memory limits, `no-new-privileges`, and no Solhunt-configured host volume mounts
+- **Networking:** The container uses Docker's default bridge so it can reach the configured RPC endpoint; it does not use host network mode
 - **Lifecycle:** container created at scan start, destroyed after (pass or fail)
 - **Remappings:** `@openzeppelin`, `@uniswap/v2-core`, `@uniswap/v3-core`, `@chainlink` are pre-configured in `foundry.toml`
 
-The agent writes and executes arbitrary Solidity inside this sandbox. It cannot escape to the host.
+Generated Solidity and shell commands execute inside the container. Treat Docker as risk reduction, not a perfect security boundary; run Solhunt only on a trusted or disposable host without wallet keys or production credentials.
 
 ### Exploit Strategy
 
@@ -205,7 +222,7 @@ Works with any OpenAI-compatible API:
 
 | Provider | Model | Cost | Notes |
 |----------|-------|------|-------|
-| **OpenRouter** | claude-sonnet-4 | ~$0.89/scan | Best benchmark results (67.7%) |
+| **OpenRouter** | claude-sonnet-4 | ~$0.89/scan | Best result on the curated benchmark (67.7%) |
 | **Anthropic** | claude-sonnet-4-6 | ~$0.89/scan | Direct API |
 | **OpenAI** | gpt-4o | ~$1.20/scan | Fast, good tool use |
 | **Ollama** (default) | qwen2.5-coder:32b | Free | Local inference, no API key needed |
@@ -224,7 +241,7 @@ The provider layer handles all format conversion between OpenAI and Anthropic me
 
 ### Requirements
 
-- **Node.js 20+**
+- **Node.js 20.19+, 22.12+, or 24+**
 - **Docker** (running)
 - **Ethereum RPC endpoint** (Alchemy free tier works)
 - **Etherscan API key** (free, for fetching contract source)
@@ -234,7 +251,7 @@ The provider layer handles all format conversion between OpenAI and Anthropic me
 ```bash
 git clone https://github.com/claygeo/solhunt.git
 cd solhunt
-npm install
+npm ci
 ```
 
 ### Environment Variables
@@ -249,7 +266,7 @@ ETH_RPC_URL=https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY
 ETHERSCAN_API_KEY=YOUR_KEY
 
 # Provider (pick one)
-SOLHUNT_PROVIDER=openrouter              # best benchmark results
+SOLHUNT_PROVIDER=openrouter              # provider used for the 67.7% curated run
 # SOLHUNT_PROVIDER=ollama                # free, local
 # SOLHUNT_PROVIDER=anthropic             # direct Anthropic API
 # SOLHUNT_PROVIDER=openai                # OpenAI
@@ -262,7 +279,7 @@ OPENROUTER_API_KEY=sk-or-...
 # Optional tuning
 # SOLHUNT_MAX_ITERATIONS=30             # max agent iterations per contract
 # SOLHUNT_TOOL_TIMEOUT=60000            # per-tool timeout (ms)
-# SOLHUNT_SCAN_TIMEOUT=1800000          # total scan timeout (ms, default 30 min)
+# SOLHUNT_SCAN_TIMEOUT=3600000          # total scan timeout (ms, default 60 min)
 ```
 
 ### Build the Docker Sandbox
@@ -374,12 +391,11 @@ solhunt/
 ├── prompts/
 │   └── system.md              # Agent system prompt (vuln classes, tools, iteration budget)
 │
-├── test/                      # Unit + integration tests (vitest)
+├── test/                      # Offline unit tests (vitest)
 │   ├── agent/                 # Provider presets, tool definitions
 │   ├── benchmark/             # Scorer math (success rate, cost averaging, class grouping)
 │   ├── ingestion/             # Etherscan parsing (single-file, multi-file, standard JSON)
-│   ├── reporter/              # Cost calculation, duration formatting
-│   └── e2e/                   # End-to-end scan tests (requires Docker)
+│   └── reporter/              # Cost calculation, duration formatting
 │
 └── benchmark/
     └── dataset.json           # 32 curated contracts from DeFiHackLabs
@@ -430,9 +446,8 @@ Built-in pricing for supported models:
 ## Running Tests
 
 ```bash
-npm test              # All tests
+npm test              # 35 offline unit tests
 npm run test:watch    # Watch mode
-npm run test:e2e      # E2E (requires Docker)
 npm run lint          # Type check
 ```
 
@@ -444,7 +459,7 @@ Designed to run on a Linux VPS with Docker.
 ssh your-vps
 git clone https://github.com/claygeo/solhunt.git
 cd solhunt
-npm install
+npm ci
 docker build -t solhunt-sandbox .
 cp .env.example .env    # fill in keys
 npx tsx src/index.ts health
@@ -461,11 +476,11 @@ The dataset loader supports chain IDs for: Ethereum (1), BSC (56), Polygon (137)
 
 - **TypeScript + Node.js** ... CLI and agent orchestration
 - **Foundry** (forge, anvil, cast) ... Solidity compilation, testing, blockchain forking
-- **Docker + dockerode** ... sandbox isolation for arbitrary code execution
+- **Docker + dockerode** ... containerized execution boundary for model-generated code
 - **Etherscan API v2** ... verified contract source retrieval
 - **commander** ... CLI parsing
 - **chalk + ora** ... terminal output
 
 ## License
 
-MIT
+[MIT](LICENSE)
